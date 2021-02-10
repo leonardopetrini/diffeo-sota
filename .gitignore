@@ -1,2 +1,4 @@
 *.ipynb
-__pycache_
+__pycache__
+figures
+dataframes

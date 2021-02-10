@@ -216,26 +216,6 @@ def relative_distance(f, os, ds, qs):
     return torch.tensor(outd), torch.tensor(outq)
 
 
-def computeR(f, os, ds, qs):
-    """
-    os: [batch, y, x, rgb]
-    ds: [T, batch, y, x, rgb]
-    qs: [T, batch, y, x, rgb]
-    """
-    with torch.no_grad():
-        os, ds, qs = os.double(), ds.double(), qs.double()
-        f = f.double()
-        f0 = f(os).detach().reshape(len(os), -1)
-        outr = []
-        for d, q in zip(ds, qs):        
-            fd = f(d).detach().reshape(len(os), -1)  # [batch, ...]
-            fq = f(q).detach().reshape(len(os), -1)  # [batch, ...]        
-            outr += [
-               ((fd - f0).pow(2) / (fq - f0).pow(2)).log().mean().exp().item()
-        ]
-        return torch.tensor(outr)
-    
-
 def imshow_cifar(inp):
     """Imshow for Tensor."""
     inp = inp.numpy().transpose((1, 2, 0))

@@ -1,4 +1,7 @@
-'''Train CIFAR10 with PyTorch.'''
+'''
+Train SOTA nets on MNIST, FashionMNIST or CIFAR10 with PyTorch.
+[see readme.md]
+'''
 import torch.optim as optim
 
 import os

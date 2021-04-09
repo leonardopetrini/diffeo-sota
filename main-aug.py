@@ -1,6 +1,7 @@
 '''
-Train SOTA nets on MNIST, FashionMNIST or CIFAR10 with PyTorch.
-[see readme.md]
+main file for diffeo-Augerino.
+
+...in progress...
 '''
 import torch.optim as optim
 

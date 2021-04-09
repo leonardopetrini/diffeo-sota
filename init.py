@@ -4,6 +4,7 @@ import torchvision
 import torchvision.transforms as transforms
 
 from models import *
+from models.pretrained import *
 
 import sys
 import warnings
@@ -18,43 +19,41 @@ except ModuleNotFoundError:
 def init_fun(args):
 
     torch.manual_seed(args.seed_init)
-    transforms_list = []
+    train_list = []
+    test_list = [transforms.ToTensor()]
+
+    diffeo_transform = Diffeo(args.sT, args.rT, args.scut, args.rcut, args.cutmin, args.cutmax)
 
     if args.dataset == 'mnist':
-        transforms_list.append(transforms.ToTensor())
+        train_list.append(transforms.ToTensor())
         if args.diffeo:
-            transforms_list.append(Diffeo(args.sT, args.rT, args.scut, args.rcut, args.cutmin, args.cutmax))
-        transform_train = transforms.Compose(transforms_list)
-        transform_test = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+            train_list.append(diffeo_transform)
         dataset = torchvision.datasets.MNIST
     if args.dataset == 'fashionmnist':
-        transforms_list.append(transforms.ToTensor())
+        train_list.append(transforms.ToTensor())
         if args.diffeo:
-            transforms_list.append(Diffeo(args.sT, args.rT, args.scut, args.rcut, args.cutmin, args.cutmax))
-        transforms_list.append(transforms.Normalize((0.5,), (0.5,)))
-        transform_train = transforms.Compose(transforms_list)
-        transform_test = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
-        ])
+            train_list.append(diffeo_transform)
+        train_list.append(transforms.Normalize((0.5,), (0.5,)))
+        test_list.append(transforms.Normalize((0.5,), (0.5,)))
         dataset = torchvision.datasets.FashionMNIST
     if args.dataset == 'cifar10':
         if args.random_crop and not args.onlydiffeo:
-            transforms_list.append(transforms.RandomCrop(32, padding=4))
+            train_list.append(transforms.RandomCrop(32, padding=4))
         if args.hflip and not args.onlydiffeo:
-            transforms_list.append(transforms.RandomHorizontalFlip())
-        transforms_list.append(transforms.ToTensor())
+            train_list.append(transforms.RandomHorizontalFlip())
+        train_list.append(transforms.ToTensor())
         if args.diffeo:
-            transforms_list.append(Diffeo(args.sT, args.rT, args.scut, args.rcut, args.cutmin, args.cutmax))
-        transforms_list.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)))
-        transform_train = transforms.Compose(transforms_list)
-        transform_test = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
+            train_list.append(diffeo_transform)
+        train_list.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)))
+        test_list.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)))
         dataset = torchvision.datasets.CIFAR10
+
+    if args.pretrained:
+        train_list.append(transforms.Resize((224, 224), interpolation=3))
+        test_list.append(transforms.Resize((224, 224), interpolation=3))
+
+    transform_train = transforms.Compose(train_list)
+    transform_test = transforms.Compose(test_list)
 
     trainset = dataset(
         root='/home/lpetrini/data/' + args.dataset, train=True, download=True, transform=transform_train)
@@ -66,6 +65,8 @@ def init_fun(args):
         # change to binary labels
         trainset.targets = 2 * (torch.as_tensor(trainset.targets) >= 5) - 1
     P = len(trainset)
+    if args.random_labels:
+        trainset.targets = trainset.targets[torch.randperm(trainset.targets.nelement())]
     if args.ptr:
         # take random subset of training set
         perm = torch.randperm(P)
@@ -85,41 +86,50 @@ def init_fun(args):
 
     num_ch = 1 if 'mnist' in args.dataset else 3
     num_classes = 1 if args.loss == 'hinge' else 10
+    imsize = 28 if 'mnist' in args.dataset else 32
     net = None
-    if args.net == 'VGG16':
-        net = VGG('VGG16')
-    if args.net == 'ResNet18':
-        net = ResNet18(num_ch=num_ch, num_classes=num_classes)
-    # if args.net == 'PreActResNet18':
-    #     net = PreActResNet18()
-    # if args.net == 'GoogLeNet':
-    #     net = GoogLeNet()
-    # if args.net == 'DenseNet121':
-    #     net = DenseNet121()
-    # if args.net == 'ResNeXt29_2x64d':
-    #     net = ResNeXt29_2x64d()
-    if args.net == 'MobileNetV2':
-        net = MobileNetV2(num_ch=num_ch, num_classes=num_classes)
-    # if args.net == 'DPN92':
-    #     net = DPN92()
-    # if args.net == 'ShuffleNetG2':
-    #     net = ShuffleNetG2()
-    # if args.net == 'SENet18':
-    #     net = SENet18()
-    # if args.net == 'ShuffleNetV2':
-    #     net = ShuffleNetV2(1)
-    if args.net == 'EfficientNetB0':
-        net = EfficientNetB0(num_ch=num_ch, num_classes=num_classes)
-    # if args.net == 'RegNetX_200MF':
-    #     net = RegNetX_200MF()
-    # if args.net == 'SimpleDLA':
-    #     net = SimpleDLA()
-    if args.net == 'ConvNetL4':
-        net = ConvNetL4()
-    if args.net == 'FC':
-        net = FC()
-    assert net is not None, 'Network architecture not in the list!'
-    net = net.to(args.device)
+    if not args.pretrained:
+        if 'VGG' in args.net:
+            if 'bn' in args.net:
+                bn = True
+                net_name = args.net[:-2]
+            else:
+                bn = False
+                net_name = args.net
+            net = VGG(net_name, num_ch=num_ch, num_classes=num_classes, batch_norm=bn)
+        if args.net == 'AlexNet':
+            net = AlexNet(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'ResNet18':
+            net = ResNet18(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'ResNet34':
+            net = ResNet34(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'ResNet50':
+            net = ResNet50(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'ResNet101':
+            net = ResNet101(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'LeNet':
+            net = LeNet(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'MobileNetV2':
+            net = MobileNetV2(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'EfficientNetB0':
+            net = EfficientNetB0(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'ConvNetL4':
+            net = ConvNetL4(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'DenseNetL2':
+            net = DenseNetL2(num_ch=num_ch * imsize ** 2, num_classes=num_classes)
+        if args.net == 'DenseNetL4':
+            net = DenseNetL4(num_ch=num_ch * imsize ** 2, num_classes=num_classes)
+        if args.net == 'DenseNetL6':
+            net = DenseNetL6(num_ch=num_ch * imsize ** 2, num_classes=num_classes)
+        if args.net == 'FC':
+            net = FC()
+        assert net is not None, 'Network architecture not in the list!'
+        net = net.to(args.device)
+    else:
+        cfg.merge_from_file(f'./models/pretrained/configs/{args.net}.yaml')
+        cfg.freeze()
+        net = build_EfficientNet(cfg)
+
     if args.device == 'cuda':
         net = torch.nn.DataParallel(net)
         cudnn.benchmark = True

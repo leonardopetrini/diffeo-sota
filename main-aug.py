@@ -2,69 +2,90 @@
 Train SOTA nets on MNIST, FashionMNIST or CIFAR10 with PyTorch.
 [see readme.md]
 '''
+import torch.optim as optim
+
 import os
 import argparse
 import subprocess
 
 from models import *
+from augerino import *
 import copy
 from functools import partial
 
-import sys
-import warnings
-sys.path.insert(0, '/home/lpetrini/git/diffeomorphism/')  # path to diffeo library
-try:
-    from transform import Diffeo
-except ModuleNotFoundError:
-    warnings.warn("Diffeo Module not found, cannot use diffeo-transform! "
-                  "Find the Module @ https://github.com/pcsl-epfl/diffeomorphism.")
 from init import init_fun
-from optim_loss import loss_func, opt_algo
+
+
+def loss_func(args, o, y, model):
+    shutdown = model.aug.logrT < 0
+    if args.loss == 'cross_entropy':
+        return nn.functional.cross_entropy(o, y, reduction='mean') - args.aug_lambda * (model.aug.logrT + model.aug.logrcut) * shutdown
+
+def opt_algo(args, model):
+
+    params_list = [
+        {'name': 'f',
+         'params': model.f.parameters(),
+         "weight_decay": args.weight_decay},
+        {'name': 'aug',
+         'params': model.aug.parameters(),
+         "weight_decay": 0.}
+    ]
+
+    if args.optim == 'sgd':
+        optimizer = optim.SGD(params_list, lr=args.lr, momentum=0.9)
+    elif args.optim == 'adam':
+        optimizer = optim.Adam(params_list, lr=args.lr)
+    else:
+        raise NameError('Specify a valid optimizer [Adam, (S)GD]')
+    if args.scheduler == 'cosineannealing':
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+    else:
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.epochs // 3, gamma=1.)
+    return optimizer, scheduler
+
 
 def run(args):
 
     best_acc = 0  # best test accuracy
     criterion = partial(loss_func, args)
 
-    trainloader, testloader, net0 = init_fun(args)
+    trainloader, testloader, net = init_fun(args)
 
-    if (args.batch_size <= args.ptr) and args.scale_batch_size:
-        args.batch_size = args.ptr // 2
+    aug = DiffeoAug(logsT=args.sT, logrT=args.rT, logscut=args.scut, logrcut=args.rcut, cutmin=args.cutmin, cutmax=args.cutmax)
+    model = Augerino(net, aug, args.ncopies)
+    model = model.to(args.device)
+
     dynamics = [] if args.save_dynamics else None
     loss = []
     best = dict()
 
-    for net, epoch, losstr in train(args, trainloader, net0, criterion):
+    for model, epoch, losstr in train(args, trainloader, model, criterion):
 
         loss.append(losstr)
 
         # Avoid computing accuracy each and every epoch if dataset is small
-        if epoch > 250:
-            if epoch % (args.epochs // 250) != 0: continue
+        if epoch % (args.epochs // 250) != 0: continue
 
-        acc = test(args, testloader, net, net0, criterion)
+        acc = test(args, testloader, model, criterion)
+        print(model.aug)
 
         if acc > best_acc:
             best['acc'] = acc
             best['epoch'] = epoch
             if args.save_best_net:
-                best['net'] = copy.deepcopy(net.state_dict())
+                best['net'] = copy.deepcopy(model.f.state_dict())
+                best['aug'] = copy.deepcopy(model.aug.state_dict())
             if args.save_dynamics:
                 dynamics.append(best)
             best_acc = acc
             print('BEST ACCURACY HERE !!!')
-            out = {
-                'args': args,
-                'train loss': loss,
-                'dynamics': dynamics,
-                'best': best,
-            }
-            yield out
         elif args.save_dynamics and (epoch % 10 == 0):
             dynamics.append({
                 'acc': acc,
                 'epoch': epoch,
-                'net': copy.deepcopy(net.state_dict())
+                'net': copy.deepcopy(model.f.state_dict()),
+                'aug': copy.deepcopy(model.aug.state_dict())
             })
         if losstr == 0:
             break
@@ -74,80 +95,60 @@ def run(args):
         'train loss': loss,
         'dynamics': dynamics,
         'best': best,
-        'last': copy.deepcopy(net.state_dict()) if args.random_labels or args.save_last_net else None,
-        # 'net0': copy.deepcopy(net0.state_dict())
     }
     yield out
 
 
-def train(args, trainloader, net0, criterion):
+def train(args, trainloader, model, criterion):
 
-    net = copy.deepcopy(net0)
-
-    optimizer, scheduler = opt_algo(args, net)
+    optimizer, scheduler = opt_algo(args, model)
     print(f'Training for {args.epochs} epochs')
 
     for epoch in range(args.epochs):
-        net.train()
+        model.train()
         train_loss = 0
         correct = 0
         total = 0
         for batch_idx, (inputs, targets) in enumerate(trainloader):
             inputs, targets = inputs.to(args.device), targets.to(args.device)
             optimizer.zero_grad()
-            outputs = net(inputs)
-            if args.featlazy:
-                with torch.no_grad():
-                    out0 = net0(inputs)
-                loss = criterion(outputs - out0, targets)
-            else:
-                loss = criterion(outputs, targets)
+            outputs = model(inputs)
+            loss = criterion(outputs, targets, model)
             loss.backward()
             optimizer.step()
 
             train_loss += loss.item()
-            if args.loss != 'hinge':
-                _, predicted = outputs.max(1)
-                correct += predicted.eq(targets).sum().item()
-            else:
-                correct += ((outputs - out0) * targets > 0).sum().item()
+            _, predicted = outputs.max(1)
+            correct += predicted.eq(targets).sum().item()
             total += targets.size(0)
 
-        print(f"[Train epoch {epoch} / {args.epochs}][tr.Loss: {train_loss * args.alpha / (batch_idx + 1):.03f}]"
+        print(f"[Train epoch {epoch} / {args.epochs}][tr.Loss: {train_loss / (batch_idx + 1):.03f}]"
               f"[tr.Acc: {100.*correct/total:.03f}, {correct} / {total}]")
 
         scheduler.step()
 
-        yield net, epoch, train_loss/(batch_idx+1)
+        yield model, epoch, train_loss / (batch_idx+1)
 
 
-def test(args, testloader, net, net0, criterion):
+def test(args, testloader, model, criterion):
 
-    net.eval()
+    model.eval()
     test_loss = 0
     correct = 0
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(args.device), targets.to(args.device)
-            outputs = net(inputs)
-
-            if args.featlazy:
-                out0 = net0(inputs)
-                loss = criterion(outputs - out0, targets)
-            else:
-                loss = criterion(outputs, targets)
+            outputs = model(inputs)
+            loss = criterion(outputs, targets, model)
 
             test_loss += loss.item()
-            if args.loss != 'hinge':
-                _, predicted = outputs.max(1)
-                correct += predicted.eq(targets).sum().item()
-            else:
-                correct += ((outputs - out0) * targets > 0).double().sum().item()
+            _, predicted = outputs.max(1)
+            correct += predicted.eq(targets).sum().item()
             total += targets.size(0)
 
         print(
-            f"[TEST][te.Loss: {test_loss * args.alpha / (batch_idx + 1):.03f}]"
+            f"[TEST][te.Loss: {test_loss / (batch_idx + 1):.03f}]"
             f"[te.Acc: {100. * correct / total:.03f}, {correct} / {total}]")
 
     return 100.*correct/total
@@ -167,40 +168,38 @@ def main():
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--scale_batch_size", type=int, default=0)
-    parser.add_argument("--random_labels", type=int, default=0)
 
     parser.add_argument("--seed_init", type=int, default=0)
     parser.add_argument("--net", type=str, required=True)
-    parser.add_argument("--pretrained", type=int, default=0)
     parser.add_argument("--loss", type=str, default='cross_entropy')
     parser.add_argument("--optim", type=str, default='sgd')
     parser.add_argument("--scheduler", type=str, default='cosineannealing')
 
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--weight_decay', default=5e-4, type=float)
     parser.add_argument("--epochs", type=int, default=250)
     parser.add_argument("--save_best_net", type=int, default=0)
-    parser.add_argument("--save_last_net", type=int, default=0)
     parser.add_argument("--save_dynamics", type=int, default=0)
 
-    parser.add_argument("--featlazy", type=int, default=0)
-    parser.add_argument("--alpha", type=float, default=1.)
-    parser.add_argument("--alphapowerloss", type=int, default=1)
+    parser.add_argument("--augerino", default='diffeo', type=str, help='augerino type')
+    parser.add_argument('--ncopies', default=4, type=int)
+    parser.add_argument('--aug_lambda', default=0.01, type=float)
 
-    parser.add_argument("--diffeo", type=int, required=True)
-    parser.add_argument("--onlydiffeo", type=int, default=0)
-    parser.add_argument("--random_crop", type=int, default=0)
-    parser.add_argument("--hflip", type=int, default=1)
-
-    parser.add_argument("--sT", type=float, default=2.)
-    parser.add_argument("--rT", type=float, default=1.)
-    parser.add_argument("--scut", type=float, default=2.)
-    parser.add_argument("--rcut", type=float, default=1.)
+    parser.add_argument("--sT", type=float, default=1.)
+    parser.add_argument("--rT", type=float, default=-1.)
+    parser.add_argument("--scut", type=float, default=1.)
+    parser.add_argument("--rcut", type=float, default=-1.)
     parser.add_argument("--cutmin", type=int, default=1)
     parser.add_argument("--cutmax", type=int, default=15)
 
+    parser.add_argument("--random_crop", type=int, default=0)
+    parser.add_argument("--hflip", type=int, default=1)
+
     parser.add_argument("--pickle", type=str, required=True)
     args = parser.parse_args()
+
+    args.diffeo = 0
+    args.onlydiffeo = 0
 
     torch.save(args, args.pickle)
     saved = False

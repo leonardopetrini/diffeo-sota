@@ -1,6 +1,12 @@
 ## Train SOTA Architectures on benchmark Data-sets with `PyTorch`
 
-The list of parameters includes:
+
+Dependencies (other than common ones):
+- `diffeomorphism` https://github.com/pcsl-epfl/diffeomorphism
+- Experiments are run using `grid` https://github.com/mariogeiger/grid/tree/master/grid
+
+
+The list of _parameters_ includes:
  - Dataset (see below) - `ptr` indicates the train-set size.
  - Architecture (see below)
  - Optimizer (`sgd`, `adam`)

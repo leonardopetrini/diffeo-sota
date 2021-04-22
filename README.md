@@ -50,3 +50,10 @@ The list includes:
 | [PreActResNet18](https://arxiv.org/abs/1603.05027) 
 | [DPN92](https://arxiv.org/abs/1707.01629) 
 | [DLA](https://arxiv.org/abs/1707.064) 
+
+
+## Measuring nets' function stability 
+
+The folder `results` contains the tools for computing a function stability toward (i) random transformations of the input (`G_f`), (ii) diffeomorphisms (`D_f`) and (iii) the relative stability `R_f` as defined in "[paper]". 
+
+Also, details about the trainings performed for "[paper]" are provided.

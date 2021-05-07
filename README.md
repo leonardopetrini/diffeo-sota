@@ -1,5 +1,7 @@
 ## Train SOTA Architectures on benchmark Data-sets with `PyTorch`
 
+code for: [Relative stability toward diffeomorphisms in deep nets indicates performance (arXiv preprint)
+](https://arxiv.org/abs/2105.02468)
 
 Dependencies (other than common ones):
 - `diffeomorphism` https://github.com/pcsl-epfl/diffeomorphism

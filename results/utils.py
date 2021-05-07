@@ -161,28 +161,48 @@ def diffeo_imgs(imgs, cuts, interp='linear', imagenet=False, Ta=2, Tb=2, nT=30, 
     return data
 
 
-def relative_distance(f, os, ds, qs, deno=True):
+def relative_distance(f, os, ds, qs, deno=True, avgtype='mean'):
     """
     Compute stabilites for a function f
 
     os: [batch, y, x, rgb]      original images
     ds: [T, batch, y, x, rgb]   images + gaussian noise
     qs: [T, batch, y, x, rgb]   diffeo images
+    deno: bool                  normalize by average function variation
+    avgtype: 'mean' or 'median' choose average type
     """
+    assert avgtype in ['mean', 'median'], 'avgtype must be either mean or median!'
+    
     with torch.no_grad():
         f0 = f(os).detach().reshape(len(os), -1)  # [batch, ...]
-        deno = torch.cdist(f0, f0).pow(2).median().item() + 1e-10 if deno else 1
-        outd = []
-        outq = []
-        for d, q in zip(ds, qs):
-            fd = f(d).detach().reshape(len(os), -1)  # [batch, ...]
-            fq = f(q).detach().reshape(len(os), -1)  # [batch, ...]
-            outd += [
-                (fd - f0).pow(2).median(0).values.sum().item() / deno
-            ]
-            outq += [
-                (fq - f0).pow(2).median(0).values.sum().item() / deno
-            ]
+        if avgtype == 'mean':
+            deno = torch.cdist(f0, f0).pow(2).mean().item() if deno else 1
+
+            outd = []
+            outq = []
+            for d, q in zip(ds, qs):        
+                fd = f(d).detach().reshape(len(os), -1)  # [batch, ...]
+                fq = f(q).detach().reshape(len(os), -1)  # [batch, ...]
+                outd += [
+                    (fd - f0).pow(2).mean(0).sum().item() / deno
+                ]
+                outq += [
+                    (fq - f0).pow(2).mean(0).sum().item() / deno
+                ]
+        elif avgtype == 'median':
+            deno = torch.cdist(f0, f0).pow(2).median().item() + 1e-10 if deno else 1
+
+            outd = []
+            outq = []
+            for d, q in zip(ds, qs):        
+                fd = f(d).detach().reshape(len(os), -1)  # [batch, ...]
+                fq = f(q).detach().reshape(len(os), -1)  # [batch, ...]
+                outd += [
+                    (fd - f0).pow(2).sum().median().item() / deno
+                ]
+                outq += [
+                    (fq - f0).pow(2).sum().median().item() / deno
+                ]
         return torch.tensor(outd), torch.tensor(outq)
 
 

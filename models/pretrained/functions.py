@@ -35,15 +35,15 @@ class Drop_Connect:
         return drop_mask * x / self.keep_prob
 
 
-def get_model_urls():
+def get_model_urls(prefix='/scratch/izar/lpetrini/data/efficientnet/'):
     model_urls = {
-        'EfficientNetB0': '/home/lpetrini/data/efficientnet/efficientnet-b0-355c32eb.pth',
-        'EfficientNetB1': '/home/lpetrini/data/efficientnet/efficientnet-b1-f1951068.pth',
-        'EfficientNetB2': '/home/lpetrini/data/efficientnet/efficientnet-b2-8bb594d6.pth',
-        'EfficientNetB3': '/home/lpetrini/data/efficientnet/efficientnet-b3-5fb5a3c3.pth',
-        'EfficientNetB4': '/home/lpetrini/data/efficientnet/efficientnet-b4-6ed6700e.pth',
-        'EfficientNetB5': '/home/lpetrini/data/efficientnet/efficientnet-b5-b6417697.pth',
-        'EfficientNetB6': '/home/lpetrini/data/efficientnet/efficientnet-b6-c76e70fd.pth',
-        'EfficientNetB7': '/home/lpetrini/data/efficientnet/efficientnet-b7-dcc49843.pth',
+        'EfficientNetB0': prefix + 'efficientnet-b0-355c32eb.pth',
+        'EfficientNetB1': prefix + 'efficientnet-b1-f1951068.pth',
+        'EfficientNetB2': prefix + 'efficientnet-b2-8bb594d6.pth',
+        'EfficientNetB3': prefix + 'efficientnet-b3-5fb5a3c3.pth',
+        'EfficientNetB4': prefix + 'efficientnet-b4-6ed6700e.pth',
+        'EfficientNetB5': prefix + 'efficientnet-b5-b6417697.pth',
+        'EfficientNetB6': prefix + 'efficientnet-b6-c76e70fd.pth',
+        'EfficientNetB7': prefix + 'efficientnet-b7-dcc49843.pth',
     }
     return model_urls

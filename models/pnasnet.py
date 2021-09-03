@@ -116,10 +116,10 @@ def PNASNetB():
     return PNASNet(CellB, num_cells=6, num_planes=32)
 
 
-def test():
-    net = PNASNetB()
-    x = torch.randn(1,3,32,32)
-    y = net(x)
-    print(y)
+# def test():
+#     net = PNASNetB()
+#     x = torch.randn(1,3,32,32)
+#     y = net(x)
+#     print(y)
 
 # test()

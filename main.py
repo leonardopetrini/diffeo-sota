@@ -5,6 +5,7 @@ Train SOTA nets on MNIST, FashionMNIST or CIFAR10 with PyTorch.
 import os
 import argparse
 import subprocess
+import time
 
 from models import *
 import copy
@@ -28,21 +29,25 @@ def run(args):
 
     trainloader, testloader, net0 = init_fun(args)
 
+    # scale batch size when smaller than train-set size
     if (args.batch_size <= args.ptr) and args.scale_batch_size:
         args.batch_size = args.ptr // 2
+
     dynamics = [] if args.save_dynamics else None
     loss = []
+    terr = []
     best = dict()
 
     for net, epoch, losstr in train(args, trainloader, net0, criterion):
 
         loss.append(losstr)
 
-        # Avoid computing accuracy each and every epoch if dataset is small
+        # avoid computing accuracy each and every epoch if dataset is small and epochs are rescaled
         if epoch > 250:
             if epoch % (args.epochs // 250) != 0: continue
 
-        acc = test(args, testloader, net, net0, criterion)
+        acc = test(args, testloader, net, criterion, net0)
+        terr.append(100 - acc)
 
         if acc > best_acc:
             best['acc'] = acc
@@ -52,7 +57,7 @@ def run(args):
             if args.save_dynamics:
                 dynamics.append(best)
             best_acc = acc
-            print('BEST ACCURACY HERE !!!')
+            print(f'BEST ACCURACY ({acc:.02f}) at epoch {epoch+1} !!')
             out = {
                 'args': args,
                 'train loss': loss,
@@ -72,10 +77,10 @@ def run(args):
     out = {
         'args': args,
         'train loss': loss,
+        'terr': terr,
         'dynamics': dynamics,
         'best': best,
         'last': copy.deepcopy(net.state_dict()) if args.random_labels or args.save_last_net else None,
-        # 'net0': copy.deepcopy(net0.state_dict())
     }
     yield out
 
@@ -85,7 +90,9 @@ def train(args, trainloader, net0, criterion):
     net = copy.deepcopy(net0)
 
     optimizer, scheduler = opt_algo(args, net)
-    print(f'Training for {args.epochs} epochs')
+    print(f'Training for {args.epochs} epochs...')
+
+    start_time = time.time()
 
     for epoch in range(args.epochs):
         net.train()
@@ -101,11 +108,12 @@ def train(args, trainloader, net0, criterion):
                     out0 = net0(inputs)
                 loss = criterion(outputs - out0, targets)
             else:
-                loss = criterion(outputs, targets)
+                loss = criterion(outputs, targets, x=inputs, f=net)
             loss.backward()
             optimizer.step()
 
             train_loss += loss.item()
+
             if args.loss != 'hinge':
                 _, predicted = outputs.max(1)
                 correct += predicted.eq(targets).sum().item()
@@ -113,17 +121,21 @@ def train(args, trainloader, net0, criterion):
                 correct += ((outputs - out0) * targets > 0).sum().item()
             total += targets.size(0)
 
-        print(f"[Train epoch {epoch} / {args.epochs}][tr.Loss: {train_loss * args.alpha / (batch_idx + 1):.03f}]"
+        avg_epoch_time = (time.time() - start_time) / (epoch + 1)
+        print(f"[Train epoch {epoch+1} / {args.epochs}, {print_time(avg_epoch_time)}/epoch, ETA: {print_time(avg_epoch_time * (args.epochs - epoch - 1))}]"
+              f"[tr.Loss: {train_loss * args.alpha / (batch_idx + 1):.03f}]"
               f"[tr.Acc: {100.*correct/total:.03f}, {correct} / {total}]")
 
         scheduler.step()
 
-        yield net, epoch, train_loss/(batch_idx+1)
+        yield net, epoch, train_loss / (batch_idx + 1)
 
 
-def test(args, testloader, net, net0, criterion):
+def test(args, testloader, net, criterion, net0=None):
 
     net.eval()
+    if net0 is None:
+        net0 = lambda x: 0
     test_loss = 0
     correct = 0
     total = 0
@@ -139,6 +151,7 @@ def test(args, testloader, net, net0, criterion):
                 loss = criterion(outputs, targets)
 
             test_loss += loss.item()
+
             if args.loss != 'hinge':
                 _, predicted = outputs.max(1)
                 correct += predicted.eq(targets).sum().item()
@@ -150,7 +163,24 @@ def test(args, testloader, net, net0, criterion):
             f"[TEST][te.Loss: {test_loss * args.alpha / (batch_idx + 1):.03f}]"
             f"[te.Acc: {100. * correct / total:.03f}, {correct} / {total}]")
 
-    return 100.*correct/total
+    return 100. * correct / total
+
+
+# timing function
+def print_time(elapsed_time):
+    elapsed_seconds = round(elapsed_time)
+
+    m, s = divmod(elapsed_seconds, 60)
+    h, m = divmod(m, 60)
+
+    elapsed_time = []
+    if h > 0:
+        elapsed_time.append(f'{h}h')
+    if not (h == 0 and m == 0):
+        elapsed_time.append(f'{m:02}m')
+    elapsed_time.append(f'{s:02}s')
+
+    return ''.join(elapsed_time)
 
 
 def main():
@@ -169,16 +199,21 @@ def main():
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--scale_batch_size", type=int, default=0)
     parser.add_argument("--random_labels", type=int, default=0)
+    parser.add_argument("--black_and_white", type=int, default=0)
 
     parser.add_argument("--seed_init", type=int, default=0)
     parser.add_argument("--net", type=str, required=True)
+    parser.add_argument("--fcwidth", type=int, default=64)
     parser.add_argument("--pretrained", type=int, default=0)
     parser.add_argument("--loss", type=str, default='cross_entropy')
     parser.add_argument("--optim", type=str, default='sgd')
     parser.add_argument("--scheduler", type=str, default='cosineannealing')
+    parser.add_argument("--param_list", type=int, default=0, help='Make parameters list for NTK calculation')
+
 
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument("--epochs", type=int, default=250)
+    parser.add_argument("--rescale_epochs", type=int, default=0)
     parser.add_argument("--save_best_net", type=int, default=0)
     parser.add_argument("--save_last_net", type=int, default=0)
     parser.add_argument("--save_dynamics", type=int, default=0)
@@ -198,6 +233,16 @@ def main():
     parser.add_argument("--rcut", type=float, default=1.)
     parser.add_argument("--cutmin", type=int, default=1)
     parser.add_argument("--cutmax", type=int, default=15)
+
+    parser.add_argument("--scattering_mode", type=int, default=0)
+    parser.add_argument("--J", type=int, default=2)
+    parser.add_argument("--L", type=int, default=8)
+
+    parser.add_argument("--diffeo_decay", type=float, default=0.)
+
+    parser.add_argument("--train_filtered", type=int, default=0.)
+    parser.add_argument("--filter_p", type=float, default=0.5)
+
 
     parser.add_argument("--pickle", type=str, required=True)
     args = parser.parse_args()

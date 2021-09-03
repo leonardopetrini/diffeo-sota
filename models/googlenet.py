@@ -1,7 +1,6 @@
 '''GoogLeNet with PyTorch.'''
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class Inception(nn.Module):
@@ -54,10 +53,10 @@ class Inception(nn.Module):
 
 
 class GoogLeNet(nn.Module):
-    def __init__(self):
+    def __init__(self, num_ch=3, num_classes=10):
         super(GoogLeNet, self).__init__()
         self.pre_layers = nn.Sequential(
-            nn.Conv2d(3, 192, kernel_size=3, padding=1),
+            nn.Conv2d(num_ch, 192, kernel_size=3, padding=1),
             nn.BatchNorm2d(192),
             nn.ReLU(True),
         )
@@ -77,7 +76,7 @@ class GoogLeNet(nn.Module):
         self.b5 = Inception(832, 384, 192, 384, 48, 128, 128)
 
         self.avgpool = nn.AvgPool2d(8, stride=1)
-        self.linear = nn.Linear(1024, 10)
+        self.linear = nn.Linear(1024, num_classes)
 
     def forward(self, x):
         out = self.pre_layers(x)
@@ -98,10 +97,10 @@ class GoogLeNet(nn.Module):
         return out
 
 
-def test():
-    net = GoogLeNet()
-    x = torch.randn(1,3,32,32)
-    y = net(x)
-    print(y.size())
+# def test():
+#     net = GoogLeNet()
+#     x = torch.randn(1,3,32,32)
+#     y = net(x)
+#     print(y.size())
 
 # test()

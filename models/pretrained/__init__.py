@@ -1,5 +1,5 @@
-from .vgg import *
-from .resnet import *
+# from .vgg import *
+# from .resnet import *
 from .efficientnet import *
 
 from yacs.config import CfgNode as CN

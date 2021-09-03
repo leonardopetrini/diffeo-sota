@@ -18,4 +18,4 @@ from .regnet import *
 from .dla_simple import *
 from .dla import *
 from .fc import *
-from .simplecnn import *
+from .simplenets import *

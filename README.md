@@ -1,7 +1,5 @@
 ## Train SOTA Architectures on benchmark Data-sets with `PyTorch`
 
-code for: [Relative stability toward diffeomorphisms in deep nets indicates performance (arXiv preprint)
-](https://arxiv.org/abs/2105.02468)
 
 Dependencies (other than common ones):
 - `diffeomorphism` https://github.com/pcsl-epfl/diffeomorphism
@@ -30,6 +28,8 @@ Example:
 | mnist
 | fashionmnist
 | cifar10
+| svhn
+| tiny-imagenet
 
 
 
@@ -38,6 +38,9 @@ The list includes:
 
 | Models             |
 | ----------------- |
+| Fully Connected
+| LeNet
+| AlexNet
 | [VGG16](https://arxiv.org/abs/1409.1556)
 | [ResNet18](https://arxiv.org/abs/1512.03385)
 | [ResNet50](https://arxiv.org/abs/1512.03385)
@@ -52,10 +55,3 @@ The list includes:
 | [PreActResNet18](https://arxiv.org/abs/1603.05027) 
 | [DPN92](https://arxiv.org/abs/1707.01629) 
 | [DLA](https://arxiv.org/abs/1707.064) 
-
-
-## Measuring nets' function stability 
-
-The folder `results` contains the tools for computing a function stability toward (i) random transformations of the input (`G_f`), (ii) diffeomorphisms (`D_f`) and (iii) the relative stability `R_f` as defined in "[paper]". 
-
-Also, details about the trainings performed for "[paper]" are provided.

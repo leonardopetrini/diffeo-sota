@@ -143,13 +143,13 @@ def RegNetY_400MF():
     return RegNet(cfg)
 
 
-def test():
-    net = RegNetX_200MF()
-    print(net)
-    x = torch.randn(2, 3, 32, 32)
-    y = net(x)
-    print(y.shape)
+# def test():
+#     net = RegNetX_200MF()
+#     print(net)
+#     x = torch.randn(2, 3, 32, 32)
+#     y = net(x)
+#     print(y.shape)
 
 
-if __name__ == '__main__':
-    test()
+# if __name__ == '__main__':
+#     test()

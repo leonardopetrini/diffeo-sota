@@ -164,11 +164,11 @@ def EfficientNetB0(num_ch=3, num_classes=10):
     return EfficientNet(cfg, num_classes=num_classes, num_ch=num_ch)
 
 
-def test():
-    net = EfficientNetB0()
-    x = torch.randn(2, 3, 32, 32)
-    y = net(x)
-    print(y.shape)
+# def test():
+#     net = EfficientNetB0()
+#     x = torch.randn(2, 3, 32, 32)
+#     y = net(x)
+#     print(y.shape)
 
 
 if __name__ == '__main__':

@@ -4,7 +4,10 @@ import torch.nn as nn
 class AlexNet(nn.Module):
     def __init__(self, num_ch=3, num_classes=10):
         super(AlexNet, self).__init__()
-        self.features = nn.Sequential(
+        layers = []
+        if num_ch == 1:
+            layers.append(nn.ZeroPad2d(2))
+        layers += [
             nn.Conv2d(num_ch, 64, kernel_size=3, stride=2, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2),
@@ -17,8 +20,9 @@ class AlexNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2),
-        )
+            nn.MaxPool2d(kernel_size=2)
+        ]
+        self.features = nn.Sequential(*layers)
         self.classifier = nn.Sequential(
             nn.Dropout(),
             nn.Linear(256 * 2 * 2, 4096),

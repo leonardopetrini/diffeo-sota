@@ -9,7 +9,6 @@ try:
 except ModuleNotFoundError:
     print("Diffeo Module not found !!! "
                   "Find the Module @ https://github.com/pcsl-epfl/diffeomorphism.")
-    
 from diff import *
 from transform import *
 import image
@@ -66,6 +65,46 @@ def load_mnist(p=500, fashion=False):
     imgs, y = next(iter(testloader))
     return imgs, y
 
+
+def load_svhn(p=500, resize=None, train=False):
+    test_list = [
+        transforms.ToTensor(),
+        transforms.Normalize((0.4523, 0.4524, 0.4689), (0.2190, 0.2261, 0.2279)),
+    ]
+    if resize is not None:
+        test_list.append(transforms.Resize((resize, resize), interpolation=3))
+
+    transform_test = transforms.Compose(test_list)
+
+    testset = torchvision.datasets.SVHN(
+        root='/home/lpetrini/data/cifar10', split='train' if train else 'test', download=True, transform=transform_test)
+    testloader = torch.utils.data.DataLoader(
+        testset, batch_size=p, shuffle=False, num_workers=2)
+
+    imgs, y = next(iter(testloader))
+    return imgs, y
+
+
+def load_timagenet(dataset, p=500, resize=None, train=False):
+    
+    imsize = int(dataset[-2:])
+    test_list = [
+        transforms.ToTensor(),
+        transforms.Normalize((0.4824, 0.4495, 0.3981), (0.2768, 0.2691, 0.2827))
+    ]
+
+    if imsize != 64:
+        test_list.append(transforms.Resize((imsize, imsize), interpolation=3))
+
+    transform_test = transforms.Compose(test_list)
+
+    testset = torchvision.datasets.ImageFolder('/home/lpetrini/data/tiny-imagenet-200/val', transform=transform_test)
+
+    testloader = torch.utils.data.DataLoader(
+        testset, batch_size=p, shuffle=False, num_workers=2)
+
+    imgs, y = next(iter(testloader))
+    return imgs, y
 
 def load_imagenet(p=80):
     im = []
@@ -161,48 +200,28 @@ def diffeo_imgs(imgs, cuts, interp='linear', imagenet=False, Ta=2, Tb=2, nT=30, 
     return data
 
 
-def relative_distance(f, os, ds, qs, deno=True, avgtype='mean'):
+def relative_distance(f, os, ds, qs, deno=True):
     """
     Compute stabilites for a function f
 
     os: [batch, y, x, rgb]      original images
     ds: [T, batch, y, x, rgb]   images + gaussian noise
     qs: [T, batch, y, x, rgb]   diffeo images
-    deno: bool                  normalize by average function variation
-    avgtype: 'mean' or 'median' choose average type
     """
-    assert avgtype in ['mean', 'median'], 'avgtype must be either mean or median!'
-    
     with torch.no_grad():
         f0 = f(os).detach().reshape(len(os), -1)  # [batch, ...]
-        if avgtype == 'mean':
-            deno = torch.cdist(f0, f0).pow(2).mean().item() if deno else 1
-
-            outd = []
-            outq = []
-            for d, q in zip(ds, qs):        
-                fd = f(d).detach().reshape(len(os), -1)  # [batch, ...]
-                fq = f(q).detach().reshape(len(os), -1)  # [batch, ...]
-                outd += [
-                    (fd - f0).pow(2).mean(0).sum().item() / deno
-                ]
-                outq += [
-                    (fq - f0).pow(2).mean(0).sum().item() / deno
-                ]
-        elif avgtype == 'median':
-            deno = torch.cdist(f0, f0).pow(2).median().item() + 1e-10 if deno else 1
-
-            outd = []
-            outq = []
-            for d, q in zip(ds, qs):        
-                fd = f(d).detach().reshape(len(os), -1)  # [batch, ...]
-                fq = f(q).detach().reshape(len(os), -1)  # [batch, ...]
-                outd += [
-                    (fd - f0).pow(2).sum().median().item() / deno
-                ]
-                outq += [
-                    (fq - f0).pow(2).sum().median().item() / deno
-                ]
+        deno = torch.cdist(f0, f0).pow(2).median().item() + 1e-10 if deno else 1
+        outd = []
+        outq = []
+        for d, q in zip(ds, qs):
+            fd = f(d).detach().reshape(len(os), -1)  # [batch, ...]
+            fq = f(q).detach().reshape(len(os), -1)  # [batch, ...]
+            outd += [
+                (fd - f0).pow(2).median(0).values.sum().item() / deno
+            ]
+            outq += [
+                (fq - f0).pow(2).median(0).values.sum().item() / deno
+            ]
         return torch.tensor(outd), torch.tensor(outq)
 
 

@@ -9,7 +9,6 @@ Dependencies (other than common ones):
 - Experiments are run using `grid` https://github.com/mariogeiger/grid/tree/master/grid
 - `diffeomorphism` https://github.com/pcsl-epfl/diffeomorphism
 
-
 ### TRAININGS ### (*)
 
  - conv. nets at different train set sizes P (arg: ptr)
@@ -48,7 +47,7 @@ srun --nice --partition gpu --qos gpu --gres gpu:1 --time 24:00:00 --mem 32G
 
 """
 
-from utils import *
+from utils_forgit import *
 
 import pandas as pd
 import torch

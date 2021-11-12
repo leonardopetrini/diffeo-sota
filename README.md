@@ -1,6 +1,7 @@
 ## Train SOTA Architectures on benchmark Data-sets with `PyTorch`
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5589870.svg)](https://doi.org/10.5281/zenodo.5589870)
 
-Code used for *Relative stability toward diffeomorphisms indicates performance in deep nets, Petrini L. et al., NeurIPS2021*. [arXiv preprint here](https://arxiv.org/abs/2105.02468).
+Code used for *Relative stability toward diffeomorphisms indicates performance in deep nets, Petrini L. et al., NeurIPS2021*. [openreview link here](https://openreview.net/forum?id=RSc-kfiLMNn).
 
 Pre-trained models are available at [https://doi.org/10.5281/zenodo.5589870](doi.org/10.5281/zenodo.5589870).
 

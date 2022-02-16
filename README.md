@@ -1,9 +1,5 @@
 ## Train SOTA Architectures on benchmark Data-sets with `PyTorch`
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5589870.svg)](https://doi.org/10.5281/zenodo.5589870)
 
-Code used for *Relative stability toward diffeomorphisms indicates performance in deep nets, Petrini L. et al., NeurIPS2021*. [openreview link here](https://openreview.net/forum?id=RSc-kfiLMNn).
-
-Pre-trained models are available at [https://doi.org/10.5281/zenodo.5589870](doi.org/10.5281/zenodo.5589870).
 
 Dependencies (other than common ones):
 - `diffeomorphism` https://github.com/pcsl-epfl/diffeomorphism
@@ -45,14 +41,13 @@ The list includes:
 | Fully Connected
 | LeNet
 | AlexNet
-| [VGG11-13-16-19](https://arxiv.org/abs/1409.1556)
+| [VGG16](https://arxiv.org/abs/1409.1556)
 | [ResNet18](https://arxiv.org/abs/1512.03385)
 | [ResNet50](https://arxiv.org/abs/1512.03385)
 | [ResNet101](https://arxiv.org/abs/1512.03385)
 | [RegNetX_200MF](https://arxiv.org/abs/2003.13678) 
 | [RegNetY_400MF](https://arxiv.org/abs/2003.13678) 
 | [MobileNetV2](https://arxiv.org/abs/1801.04381)
-| EfficientNetB0
 | [ResNeXt29(32x4d)](https://arxiv.org/abs/1611.05431)
 | [ResNeXt29(2x64d)](https://arxiv.org/abs/1611.05431)
 | [SimpleDLA](https://arxiv.org/abs/1707.064) 

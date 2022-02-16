@@ -2,7 +2,6 @@ import sys
 
 import torchvision
 from torchvision import transforms
-import numpy as np
 
 try:
     sys.path.insert(0, '/home/lpetrini/git/diffeomorphism/')
@@ -10,13 +9,10 @@ except ModuleNotFoundError:
     print("Diffeo Module not found !!! "
                   "Find the Module @ https://github.com/pcsl-epfl/diffeomorphism.")
 from diff import *
-from transform import *
 import image
 from image import *
-from etc import *
 from tqdm.auto import tqdm
 import glob
-import matplotlib.pyplot as plt
 
 from models import *
 from models.pretrained import *
@@ -30,7 +26,7 @@ def typical_temperature(delta, cut, n):
     return 4 * delta ** 2 / (math.pi * n ** 2 * log)
 
 
-def load_cifar(p=500, resize=None):
+def load_cifar(p=500, resize=None, train=False, device='cpu', class_=None):
     test_list = [
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
@@ -41,12 +37,14 @@ def load_cifar(p=500, resize=None):
     transform_test = transforms.Compose(test_list)
 
     testset = torchvision.datasets.CIFAR10(
-        root='/home/lpetrini/data/cifar10', train=False, download=True, transform=transform_test)
+        root='/home/lpetrini/data/cifar10', train=train, download=True, transform=transform_test)
+    if class_ is not None:
+        testset = torch.utils.data.Subset(testset, [i for i, t in enumerate(testset.targets) if t == class_])
     testloader = torch.utils.data.DataLoader(
-        testset, batch_size=p, shuffle=False, num_workers=2)
+        testset, batch_size=p, shuffle=not train, num_workers=2)
 
     imgs, y = next(iter(testloader))
-    return imgs, y
+    return imgs.to(device), y.to(device)
 
 
 def load_mnist(p=500, fashion=False):
@@ -63,6 +61,29 @@ def load_mnist(p=500, fashion=False):
         testset, batch_size=p, shuffle=False, num_workers=2)
 
     imgs, y = next(iter(testloader))
+    return imgs, y
+
+
+def load_imagenet(p=80):
+    im = []
+    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03000684/*.JPEG"))  # tronconeuses
+    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n02102040/*.JPEG"))  # chien (une race)
+    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03425413/*.JPEG"))  # station essence
+    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n01440764/*.JPEG"))  #
+    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n02979186/*.JPEG"))  #
+    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03028079/*.JPEG"))  #
+    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03445777/*.JPEG"))  #
+    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03888257/*.JPEG"))  #
+    images = []
+    y = []
+    for i, imm in enumerate(im):
+        images = images + imm
+        y = y + [i for _ in range(len(imm))]
+    P = torch.randperm(len(images))[:p].tolist()
+    images = [images[i] for i in P]
+    y = [y[i] for i in P]
+    y = torch.as_tensor(y)
+    imgs = torch.stack([image.square(image.load(i)) for i in images])
     return imgs, y
 
 
@@ -85,8 +106,7 @@ def load_svhn(p=500, resize=None, train=False):
     return imgs, y
 
 
-def load_timagenet(dataset, p=500, resize=None, train=False):
-    
+def load_timagenet(dataset, p=500, resize_interpolation=2):
     imsize = int(dataset[-2:])
     test_list = [
         transforms.ToTensor(),
@@ -94,7 +114,7 @@ def load_timagenet(dataset, p=500, resize=None, train=False):
     ]
 
     if imsize != 64:
-        test_list.append(transforms.Resize((imsize, imsize), interpolation=3))
+        test_list.append(transforms.Resize((imsize, imsize), interpolation=resize_interpolation))
 
     transform_test = transforms.Compose(test_list)
 
@@ -104,28 +124,6 @@ def load_timagenet(dataset, p=500, resize=None, train=False):
         testset, batch_size=p, shuffle=False, num_workers=2)
 
     imgs, y = next(iter(testloader))
-    return imgs, y
-
-def load_imagenet(p=80):
-    im = []
-    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03000684/*.JPEG"))  # tronconeuses
-    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n02102040/*.JPEG"))  # chien (une race)
-    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03425413/*.JPEG"))  # station essence
-    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n01440764/*.JPEG"))  #
-    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n02979186/*.JPEG"))  #
-    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03028079/*.JPEG"))  #
-    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03445777/*.JPEG"))  #
-    im.append(glob.glob("/home/mgeiger/datasets/imagenette2-320/val/n03888257/*.JPEG"))  #
-    images = []
-    y = []
-    for i, imm in enumerate(im):
-        images = images + imm
-        y = y + [i for _ in range(len(imm))]
-    P = torch.randperm(len(images))[:p].tolist()
-    images = [images[i] for i in P]
-    y = [y[i] for i in P]
-    y = torch.as_tensor(y)
-    imgs = torch.stack([image.square(image.load(i)) for i in images])
     return imgs, y
 
 
@@ -227,21 +225,31 @@ def relative_distance(f, os, ds, qs, deno=True):
 
 def select_net(args):
     num_ch = 1 if 'mnist' in args.dataset else 3
-    num_classes = 1 if args.loss == 'hinge' else 10
+    nc = 200 if 'tiny' in args.dataset else 10
+    nc = 2 if 'diffeo' in args.dataset else nc
+    num_classes = 1 if args.loss == 'hinge' else nc
     imsize = 28 if 'mnist' in args.dataset else 32
+    try:
+        args.fcwidth
+    except:
+        args.fcwidth = 64
+    try:
+        args.width
+    except:
+        args.width = args.fcwidth
     try:
         args.pretrained
     except:
         args.pretrained = 0
-    if not args.pretrained:
+    if not args.pretrained: # and not args.scattering_mode
         if 'VGG' in args.net:
             if 'bn' in args.net:
                 bn = True
                 net_name = args.net[:-2]
             else:
-                net_name = args.net
                 bn = False
-            net = VGG(net_name, num_ch=num_ch, num_classes=num_classes, batch_norm=bn)
+                net_name = args.net
+            net = VGG(net_name, num_ch=num_ch, num_classes=num_classes, batch_norm=bn, param_list=args.param_list)
         if args.net == 'AlexNet':
             net = AlexNet(num_ch=num_ch, num_classes=num_classes)
         if args.net == 'ResNet18':
@@ -251,23 +259,33 @@ def select_net(args):
         if args.net == 'ResNet50':
             net = ResNet50(num_ch=num_ch, num_classes=num_classes)
         if args.net == 'ResNet101':
-            net = ResNet50(num_ch=num_ch, num_classes=num_classes)
+            net = ResNet101(num_ch=num_ch, num_classes=num_classes)
         if args.net == 'LeNet':
             net = LeNet(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'GoogLeNet':
+            net = GoogLeNet(num_ch=num_ch, num_classes=num_classes)
         if args.net == 'MobileNetV2':
             net = MobileNetV2(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'DenseNet121':
+            net = DenseNet121(num_ch=num_ch, num_classes=num_classes)
         if args.net == 'EfficientNetB0':
             net = EfficientNetB0(num_ch=num_ch, num_classes=num_classes)
+        if args.net == 'MinCNN':
+            net = MinCNN(num_ch=num_ch, num_classes=num_classes, h=args.width, fs=args.filter_size, ps=args.pooling_size)
+        if args.net == 'LCN':
+            net = MinCNN(num_ch=num_ch, num_classes=num_classes, h=args.width, fs=args.filter_size, ps=args.pooling_size)
         if args.net == 'DenseNetL2':
-            net = DenseNetL2(num_ch=num_ch * imsize ** 2, num_classes=num_classes)
+            net = DenseNetL2(num_ch=num_ch * imsize ** 2, num_classes=num_classes, h=args.width)
         if args.net == 'DenseNetL4':
-            net = DenseNetL4(num_ch=num_ch * imsize ** 2, num_classes=num_classes)
+            net = DenseNetL4(num_ch=num_ch * imsize ** 2, num_classes=num_classes, h=args.width)
         if args.net == 'DenseNetL6':
-            net = DenseNetL6(num_ch=num_ch * imsize ** 2, num_classes=num_classes)
+            net = DenseNetL6(num_ch=num_ch * imsize ** 2, num_classes=num_classes, h=args.width)
+        if args.net == 'FC':
+            net = FC()
+        if args.net == 'ScatteringLinear':
+            net = ScatteringLinear(n=imsize, ch=num_ch, J=args.J, L=args.L, num_classes=num_classes)
     else:
-        cfg.merge_from_file(f'./models/pretrained/configs/{args.net}.yaml')
-        cfg.freeze()
-        net = build_EfficientNet(cfg)
+        raise ValueError
     return net
 
 

@@ -4,7 +4,6 @@ Train SOTA nets on MNIST, FashionMNIST or CIFAR10 with PyTorch.
 '''
 import os
 import argparse
-import subprocess
 import time
 
 from models import *
@@ -20,7 +19,7 @@ except ModuleNotFoundError:
     warnings.warn("Diffeo Module not found, cannot use diffeo-transform! "
                   "Find the Module @ https://github.com/pcsl-epfl/diffeomorphism.")
 from init import init_fun
-from optim_loss import loss_func, opt_algo
+from optim_loss import loss_func, opt_algo, measure_accuracy
 
 def run(args):
 
@@ -33,13 +32,22 @@ def run(args):
     if (args.batch_size <= args.ptr) and args.scale_batch_size:
         args.batch_size = args.ptr // 2
 
-    dynamics = [] if args.save_dynamics else None
+    if args.save_dynamics:
+        dynamics = [{
+            'acc': 0.,
+            'epoch': -1,
+            'net': copy.deepcopy(net0.state_dict())
+        }]
+    else:
+        dynamics = None
+
     loss = []
     terr = []
     best = dict()
 
     for net, epoch, losstr in train(args, trainloader, net0, criterion):
 
+        assert str(losstr) != 'nan', 'Loss is nan value!!'
         loss.append(losstr)
 
         # avoid computing accuracy each and every epoch if dataset is small and epochs are rescaled
@@ -49,13 +57,20 @@ def run(args):
         acc = test(args, testloader, net, criterion, net0)
         terr.append(100 - acc)
 
+        if args.save_dynamics and (epoch in (10 ** torch.linspace(-1, math.log10(args.epochs), 30)).int().unique()):
+            # save dynamics at 30 log-spaced points in time
+            dynamics.append({
+                'acc': acc,
+                'epoch': epoch,
+                'net': copy.deepcopy(net.state_dict())
+            })
         if acc > best_acc:
             best['acc'] = acc
             best['epoch'] = epoch
             if args.save_best_net:
                 best['net'] = copy.deepcopy(net.state_dict())
-            if args.save_dynamics:
-                dynamics.append(best)
+            # if args.save_dynamics:
+            #     dynamics.append(best)
             best_acc = acc
             print(f'BEST ACCURACY ({acc:.02f}) at epoch {epoch+1} !!')
             out = {
@@ -65,12 +80,6 @@ def run(args):
                 'best': best,
             }
             yield out
-        elif args.save_dynamics and (epoch % 10 == 0):
-            dynamics.append({
-                'acc': acc,
-                'epoch': epoch,
-                'net': copy.deepcopy(net.state_dict())
-            })
         if losstr == 0:
             break
 
@@ -102,24 +111,20 @@ def train(args, trainloader, net0, criterion):
         for batch_idx, (inputs, targets) in enumerate(trainloader):
             inputs, targets = inputs.to(args.device), targets.to(args.device)
             optimizer.zero_grad()
-            outputs = net(inputs)
+            outputs = net(inputs).squeeze()
             if args.featlazy:
                 with torch.no_grad():
-                    out0 = net0(inputs)
+                    out0 = net0(inputs).squeeze()
                 loss = criterion(outputs - out0, targets)
             else:
-                loss = criterion(outputs, targets, x=inputs, f=net)
+                out0 = 0
+                loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
 
             train_loss += loss.item()
 
-            if args.loss != 'hinge':
-                _, predicted = outputs.max(1)
-                correct += predicted.eq(targets).sum().item()
-            else:
-                correct += ((outputs - out0) * targets > 0).sum().item()
-            total += targets.size(0)
+            correct, total = measure_accuracy(args, outputs, out0, targets, correct, total)
 
         avg_epoch_time = (time.time() - start_time) / (epoch + 1)
         print(f"[Train epoch {epoch+1} / {args.epochs}, {print_time(avg_epoch_time)}/epoch, ETA: {print_time(avg_epoch_time * (args.epochs - epoch - 1))}]"
@@ -142,22 +147,18 @@ def test(args, testloader, net, criterion, net0=None):
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(args.device), targets.to(args.device)
-            outputs = net(inputs)
+            outputs = net(inputs).squeeze()
 
             if args.featlazy:
-                out0 = net0(inputs)
+                out0 = net0(inputs).squeeze()
                 loss = criterion(outputs - out0, targets)
             else:
+                out0 = 0
                 loss = criterion(outputs, targets)
 
             test_loss += loss.item()
 
-            if args.loss != 'hinge':
-                _, predicted = outputs.max(1)
-                correct += predicted.eq(targets).sum().item()
-            else:
-                correct += ((outputs - out0) * targets > 0).double().sum().item()
-            total += targets.size(0)
+            correct, total = measure_accuracy(args, outputs, out0, targets, correct, total)
 
         print(
             f"[TEST][te.Loss: {test_loss * args.alpha / (batch_idx + 1):.03f}]"
@@ -184,10 +185,6 @@ def print_time(elapsed_time):
 
 
 def main():
-    git = {
-        'log': subprocess.getoutput('git log --format="%H" -n 1 -z'),
-        'status': subprocess.getoutput('git status -z'),
-    }
 
     parser = argparse.ArgumentParser()
 
@@ -200,18 +197,43 @@ def main():
     parser.add_argument("--scale_batch_size", type=int, default=0)
     parser.add_argument("--random_labels", type=int, default=0)
     parser.add_argument("--black_and_white", type=int, default=0)
+    parser.add_argument("--group_tiny_classes", type=int, default=0)
+    parser.add_argument("--gaussian_corruption_std", type=float, default=0.)
+    parser.add_argument("--corruption_subspace_dimension", type=int, default=0)
+
+    parser.add_argument("--xi", type=float, default=5)
+    parser.add_argument("--gap", type=float, default=0)
+    parser.add_argument("--norm", type=str, default='Linf')
+    parser.add_argument("--pbc", type=int, default=0)
+
+    parser.add_argument("--pte", type=int, default=0)
+    parser.add_argument("--T", type=float, default=1e-5)
+    parser.add_argument("--t", type=float, default=1e-3)
+
 
     parser.add_argument("--seed_init", type=int, default=0)
+    parser.add_argument("--seed_net", type=int, default=-1)
+    parser.add_argument("--seed_data", type=int, default=-1)
     parser.add_argument("--net", type=str, required=True)
-    parser.add_argument("--fcwidth", type=int, default=64)
     parser.add_argument("--pretrained", type=int, default=0)
+    parser.add_argument("--random_features", type=int, default=0)
+
     parser.add_argument("--loss", type=str, default='cross_entropy')
     parser.add_argument("--optim", type=str, default='sgd')
     parser.add_argument("--scheduler", type=str, default='cosineannealing')
     parser.add_argument("--param_list", type=int, default=0, help='Make parameters list for NTK calculation')
 
+    # params for simple FCNs and CNNs
+    parser.add_argument("--width", type=int, default=64)
+    parser.add_argument("--depth", type=int, default=3)
+    parser.add_argument("--width_factor", type=float, default=1.)
+    parser.add_argument("--filter_size", type=int, default=5)
+    parser.add_argument("--pooling_size", type=int, default=4)
+    parser.add_argument("--dropout", type=float, default=0)
+
 
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--weight_decay', default=5e-4, type=float)
     parser.add_argument("--epochs", type=int, default=250)
     parser.add_argument("--rescale_epochs", type=int, default=0)
     parser.add_argument("--save_best_net", type=int, default=0)
@@ -223,7 +245,6 @@ def main():
     parser.add_argument("--alphapowerloss", type=int, default=1)
 
     parser.add_argument("--diffeo", type=int, required=True)
-    parser.add_argument("--onlydiffeo", type=int, default=0)
     parser.add_argument("--random_crop", type=int, default=0)
     parser.add_argument("--hflip", type=int, default=1)
 
@@ -244,14 +265,18 @@ def main():
     parser.add_argument("--filter_p", type=float, default=0.5)
 
 
-    parser.add_argument("--pickle", type=str, required=True)
+    parser.add_argument("--pickle", type=str, required=False, default='None')
+    parser.add_argument("--output", type=str, required=False, default='None')
     args = parser.parse_args()
+
+    if args.pickle == 'None':
+        assert args.output != 'None', 'either `pickle` or `output` must be given to the parser!!'
+        args.pickle = args.output
 
     torch.save(args, args.pickle)
     saved = False
     try:
         for res in run(args):
-            res['git'] = git
             with open(args.pickle, 'wb') as f:
                 torch.save(args, f, _use_new_zipfile_serialization=False)
                 torch.save(res, f, _use_new_zipfile_serialization=False)

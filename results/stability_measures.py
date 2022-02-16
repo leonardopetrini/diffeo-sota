@@ -47,7 +47,7 @@ srun --nice --partition gpu --qos gpu --gres gpu:1 --time 24:00:00 --mem 32G
 
 """
 
-from utils_forgit import *
+from .utils import *
 
 import pandas as pd
 import torch

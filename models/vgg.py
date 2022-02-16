@@ -16,12 +16,12 @@ cfg = {
 
 
 class VGG(nn.Module):
-    def __init__(self, vgg_name, num_ch=3, num_classes=10, batch_norm=True, pooling='max', pooling_size=2, param_list=False):
+    def __init__(self, vgg_name, num_ch=3, num_classes=10, batch_norm=True, pooling='max', pooling_size=2, param_list=False, width_factor=1):
         super(VGG, self).__init__()
         if pooling == True:
             pooling = 'max'
-        self.features = self._make_layers(cfg[vgg_name], ch=num_ch, bn=batch_norm, pooling=pooling, ps=pooling_size, param_list=param_list)
-        self.classifier = nn.Linear(512, num_classes)
+        self.features = self._make_layers(cfg[vgg_name], ch=num_ch, bn=batch_norm, pooling=pooling, ps=pooling_size, param_list=param_list, width_factor=width_factor)
+        self.classifier = nn.Linear(int(512 * width_factor), num_classes)
 
     def forward(self, x):
         out = self.features(x)
@@ -29,7 +29,7 @@ class VGG(nn.Module):
         out = self.classifier(out)
         return out
 
-    def _make_layers(self, cfg, ch, bn, pooling, ps, param_list):
+    def _make_layers(self, cfg, ch, bn, pooling, ps, param_list, width_factor):
         layers = []
         in_channels = ch
         if ch == 1:
@@ -47,6 +47,7 @@ class VGG(nn.Module):
                 else:
                     layers += [SubSampling(kernel_size=ps, stride=2)]
             else:
+                x = int(x * width_factor)
                 if bn:
                     layers += [convLayer(in_channels, x, kernel_size=3, padding=1),
                                nn.BatchNorm2d(x),

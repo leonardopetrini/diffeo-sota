@@ -180,66 +180,42 @@ def main():
 
     parser = argparse.ArgumentParser()
 
+    ### Tensors type ###
     parser.add_argument("--device", type=str, default='cuda')
     parser.add_argument("--dtype", type=str, default='float64')
 
+
+    ### Seeds ###
+    parser.add_argument("--seed_init", type=int, default=0)
+    parser.add_argument("--seed_net", type=int, default=-1)
+    parser.add_argument("--seed_data", type=int, default=-1)
+
+
+    ### DATASET ARGS ###
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, default=0)
+    parser.add_argument("--pte", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--scale_batch_size", type=int, default=0)
-    parser.add_argument("--random_labels", type=int, default=0)
-    parser.add_argument("--black_and_white", type=int, default=0)
-    parser.add_argument("--group_tiny_classes", type=int, default=0)
-    parser.add_argument("--gaussian_corruption_std", type=float, default=0.)
-    parser.add_argument("--corruption_subspace_dimension", type=int, default=0)
 
+    ## TwoPoints dataset args ##
     parser.add_argument("--xi", type=float, default=5)
     parser.add_argument("--gap", type=float, default=0)
     parser.add_argument("--norm", type=str, default='Linf')
     parser.add_argument("--pbc", type=int, default=0)
 
-    parser.add_argument("--pte", type=int, default=0)
-    parser.add_argument("--T", type=float, default=1e-5)
-    parser.add_argument("--t", type=float, default=1e-3)
+    ## tinyImageNet args ##
+    parser.add_argument("--group_tiny_classes", type=int, default=0)
 
+    ## diffeoDataset args ##
+    parser.add_argument("--between_class_T", type=float, default=1e-5)
+    parser.add_argument("--within_class_T", type=float, default=1e-3)
 
-    parser.add_argument("--seed_init", type=int, default=0)
-    parser.add_argument("--seed_net", type=int, default=-1)
-    parser.add_argument("--seed_data", type=int, default=-1)
-    parser.add_argument("--net", type=str, required=True)
-    parser.add_argument("--pretrained", type=int, default=0)
-    parser.add_argument("--random_features", type=int, default=0)
-
-    parser.add_argument("--loss", type=str, default='cross_entropy')
-    parser.add_argument("--optim", type=str, default='sgd')
-    parser.add_argument("--scheduler", type=str, default='cosineannealing')
-    parser.add_argument("--param_list", type=int, default=0, help='Make parameters list for NTK calculation')
-
-    # params for simple FCNs and CNNs
-    parser.add_argument("--width", type=int, default=64)
-    parser.add_argument("--depth", type=int, default=3)
-    parser.add_argument("--width_factor", type=float, default=1.)
-    parser.add_argument("--filter_size", type=int, default=5)
-    parser.add_argument("--pooling_size", type=int, default=4)
-    parser.add_argument("--dropout", type=float, default=0)
-
-
-    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-    parser.add_argument('--weight_decay', default=5e-4, type=float)
-    parser.add_argument("--epochs", type=int, default=250)
-    parser.add_argument("--rescale_epochs", type=int, default=0)
-    parser.add_argument("--save_best_net", type=int, default=0)
-    parser.add_argument("--save_last_net", type=int, default=0)
-    parser.add_argument("--save_dynamics", type=int, default=0)
-
-    parser.add_argument("--featlazy", type=int, default=0)
-    parser.add_argument("--alpha", type=float, default=1.)
-    parser.add_argument("--alphapowerloss", type=int, default=1)
-
-    parser.add_argument("--diffeo", type=int, required=True)
+    ## data augmentations ##
     parser.add_argument("--random_crop", type=int, default=0)
     parser.add_argument("--hflip", type=int, default=1)
-
+    parser.add_argument("--diffeo", type=int, required=True)
+    # diffeo augmentation params #
     parser.add_argument("--sT", type=float, default=2.)
     parser.add_argument("--rT", type=float, default=1.)
     parser.add_argument("--scut", type=float, default=2.)
@@ -247,16 +223,57 @@ def main():
     parser.add_argument("--cutmin", type=int, default=1)
     parser.add_argument("--cutmax", type=int, default=15)
 
-    parser.add_argument("--scattering_mode", type=int, default=0)
-    parser.add_argument("--J", type=int, default=2)
-    parser.add_argument("--L", type=int, default=8)
-
-    parser.add_argument("--diffeo_decay", type=float, default=0.)
-
+    ## label / data corruptions ##
+    parser.add_argument("--black_and_white", type=int, default=0)
+    parser.add_argument("--gaussian_corruption_std", type=float, default=0.)
+    parser.add_argument("--corruption_subspace_dimension", type=int, default=0)
+    parser.add_argument("--random_labels", type=int, default=0)
     parser.add_argument("--train_filtered", type=int, default=0.)
     parser.add_argument("--filter_p", type=float, default=0.5)
 
 
+    ### ARCHITECTURES ARGS ###
+    parser.add_argument("--net", type=str, required=True)
+    parser.add_argument("--random_features", type=int, default=0)
+    parser.add_argument("--pretrained", type=int, default=0)
+
+    ## Nets params ##
+    parser.add_argument("--width", type=int, default=64)
+    parser.add_argument("--depth", type=int, default=3)
+    parser.add_argument("--width_factor", type=float, default=1.)
+    parser.add_argument("--filter_size", type=int, default=5)
+    parser.add_argument("--pooling_size", type=int, default=4)
+    parser.add_argument("--dropout", type=float, default=0)
+    parser.add_argument("--param_list", type=int, default=0, help='Make parameters list for NTK calculation')
+
+    ## Scattering transform ##
+    parser.add_argument("--scattering_mode", type=int, default=0)
+    parser.add_argument("--J", type=int, default=2)
+    parser.add_argument("--L", type=int, default=8)
+
+
+    ### ALGORITHM ARGS ###
+    parser.add_argument("--loss", type=str, default='cross_entropy')
+    parser.add_argument("--optim", type=str, default='sgd')
+    parser.add_argument("--scheduler", type=str, default='cosineannealing')
+
+    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--weight_decay', default=5e-4, type=float)
+    parser.add_argument("--epochs", type=int, default=250)
+    parser.add_argument("--rescale_epochs", type=int, default=0)
+
+    ## Feature vs. Lazy: alpha trick ##
+    parser.add_argument("--featlazy", type=int, default=0)
+    parser.add_argument("--alpha", type=float, default=1.)
+    parser.add_argument("--alphapowerloss", type=int, default=1)
+
+
+    ### SAVING ARGS ###
+    parser.add_argument("--save_best_net", type=int, default=0)
+    parser.add_argument("--save_last_net", type=int, default=0)
+    parser.add_argument("--save_dynamics", type=int, default=0)
+
+    ## saving path ##
     parser.add_argument("--pickle", type=str, required=False, default='None')
     parser.add_argument("--output", type=str, required=False, default='None')
     args = parser.parse_args()

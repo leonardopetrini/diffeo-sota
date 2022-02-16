@@ -174,7 +174,7 @@ def dataset_initialization(args):
         imsize = 32
         trainset, testset = torch.utils.data.random_split(
             diffeo_dataset(load_cifar_samples(5)[0][4], p=args.ptr + args.pte,
-                                    cut=3, T=args.T, t=args.t),
+                                    cut=3, T=args.between_class_T, t=args.within_class_T),
             [args.ptr, args.pte])
         trainset.targets = trainset.dataset.tensors[1].tolist()
         testset.targets = testset.dataset.tensors[1].tolist()
@@ -218,11 +218,11 @@ def dataset_initialization(args):
             args.epochs = min(int(args.epochs * P / args.ptr), 5000)
 
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+        trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
     ## Build testloader ##
 
     testloader = torch.utils.data.DataLoader(
-        testset, batch_size=100, shuffle=False, num_workers=0)
+        testset, batch_size=100, shuffle=False, num_workers=2)
 
     return trainloader, testloader, imsize, num_classes

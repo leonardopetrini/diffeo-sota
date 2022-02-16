@@ -10,9 +10,10 @@ def unpickle(file):
         dict = pickle.load(fo)
     return dict
 
-
 def init_fun(args):
-
+    """
+        Initialize dataset and architecture.
+    """
     torch.manual_seed(args.seed_init)
 
     trainloader, testloader, imsize, num_classes = dataset_initialization(args)

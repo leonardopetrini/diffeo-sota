@@ -10,14 +10,6 @@ from models import *
 import copy
 from functools import partial
 
-import sys
-import warnings
-sys.path.insert(0, '/home/lpetrini/git/diffeomorphism/')  # path to diffeo library
-try:
-    from transform import Diffeo
-except ModuleNotFoundError:
-    warnings.warn("Diffeo Module not found, cannot use diffeo-transform! "
-                  "Find the Module @ https://github.com/pcsl-epfl/diffeomorphism.")
 from init import init_fun
 from optim_loss import loss_func, opt_algo, measure_accuracy
 

@@ -28,6 +28,13 @@ from .scattering import *
 
 
 def model_initialization(args, image_size, num_classes):
+    """
+    Neural netowrk initialization.
+    :param args: parser arguments
+    :param image_size: input image size (needed for FC nets)
+    :param num_classes: number of outputs
+    :return: neural network as torch.nn.Module
+    """
 
     num_ch = 1 if 'mnist' in args.dataset or args.black_and_white or 'twopoints' in args.dataset else 3
     num_classes = 1 if args.loss == 'hinge' else num_classes

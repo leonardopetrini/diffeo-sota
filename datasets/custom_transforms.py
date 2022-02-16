@@ -2,6 +2,13 @@ import torch
 
 
 def filter_(x, window_size=10, high_pass=True):
+    """
+    Low / High pass filter of size `window_size` for images.
+    :param x: input image
+    :param window_size: size of the filter
+    :param high_pass: high-pass filter flag
+    :return: filtered image.
+    """
     N = x.shape[1]
 
     fi = torch.fft.rfft(x, signal_ndim=2, onesided=False, normalized=False)
@@ -21,6 +28,10 @@ def filter_(x, window_size=10, high_pass=True):
 
 
 class LowHighPassFilter(torch.nn.Module):
+    """
+    Torch transform: applies a filter which is low/high pass with probability `p`
+    and size uniformly sampled in {10, 11, ..., 24}.
+    """
     def __init__(self, p=0.5):
         super().__init__()
         self.B = torch.distributions.bernoulli.Bernoulli(p)
@@ -39,6 +50,9 @@ class LowHighPassFilter(torch.nn.Module):
         return self.__class__.__name__ + f'(Random low or high pass filter with proba p = {self.p})'
 
 class AvgChannels(torch.nn.Module):
+    """
+        Turn image from colored (3 channels) to black and white (1 channel).
+    """
     def __init__(self):
         super().__init__()
 
@@ -57,6 +71,9 @@ class AvgChannels(torch.nn.Module):
 
 
 class GaussianNoiseCorruption(torch.nn.Module):
+    """
+        Add white noise to input image.
+    """
     def __init__(self, mean=0., std=1.):
         super().__init__()
         self.std = std
@@ -71,6 +88,9 @@ class GaussianNoiseCorruption(torch.nn.Module):
 
 
 class RandomSubspaceCorruption(torch.nn.Module):
+    """
+        Add white noise in a random linear `deff`-dimensional subspace of input space.
+    """
     def __init__(self, deff, d, std=1.):
         super().__init__()
         # coefficients mapping effective to real space

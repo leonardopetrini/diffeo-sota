@@ -22,6 +22,9 @@ def loss_func(args, o, y):
 
 
 def measure_accuracy(args, out, out0, targets, correct, total):
+    """
+        Compute out accuracy on targets. Returns running number of correct and total predictions.
+    """
     if args.loss != 'hinge':
         _, predicted = out.max(1)
         correct += predicted.eq(targets).sum().item()

@@ -8,7 +8,7 @@ fourier/
 prova*
 .idea/
 datasets/twopoints.py
-    
+
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

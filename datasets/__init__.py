@@ -92,7 +92,8 @@ def dataset_initialization(args):
 
         if args.gaussian_corruption_std:
             if not args.corruption_subspace_dimension:
-                train_list.append(GaussianNoiseCorruption(std=args.gaussian_corruption_std))
+                    train_list.append(GaussianNoiseCorruption(std=args.gaussian_corruption_std))
+                    test_list.append(GaussianNoiseCorruption(std=args.gaussian_corruption_std))
             else:
                 if args.dataset in ['cifar10' or 'svhn']:
                     numel = 32 ** 2 * 3
@@ -180,17 +181,19 @@ def dataset_initialization(args):
         testset.targets = testset.dataset.tensors[1].tolist()
 
     elif args.dataset == 'twopoints':
-        imsize = 28
+        imsize = args.d
         if args.random_crop or args.hflip or args.diffeo:
             raise NotImplementedError
         else:
             transform = None
 
-        trainset = TwoPointsDataset(xi=args.xi, d=imsize, gap=args.gap, pbc=args.pbc, norm=args.norm, train=True,
-                                             transform=transform, testsize=args.ptr * 4)
-        testset = TwoPointsDataset(xi=args.xi, d=imsize, gap=args.gap, pbc=args.pbc, norm=args.norm, train=False,
-                                            transform=transform, testsize=args.ptr * 4)
-
+        ch = 2 if args.ch == 3 else 1
+        trainset = TwoPointsDataset(xi=args.xi, d=args.d, ch=ch, gap=args.gap, pbc=args.pbc, norm=args.norm, train=True,
+                                             transform=transform, testsize=args.ptr * 4,
+                                             background_noise=args.background_noise, labelling=args.labelling)
+        testset = TwoPointsDataset(xi=args.xi, d=args.d, ch=ch, gap=args.gap, pbc=args.pbc, norm=args.norm, train=False,
+                                            transform=transform, testsize=args.ptr * 4,
+                                            background_noise=args.background_noise, labelling=args.labelling)
     else:
         raise ValueError('`dataset` argument is invalid!')
 
@@ -218,11 +221,11 @@ def dataset_initialization(args):
             args.epochs = min(int(args.epochs * P / args.ptr), 5000)
 
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+        trainset, batch_size=args.batch_size, shuffle=True, num_workers=1)
 
     ## Build testloader ##
 
     testloader = torch.utils.data.DataLoader(
-        testset, batch_size=100, shuffle=False, num_workers=2)
+        testset, batch_size=100, shuffle=False, num_workers=1)
 
     return trainloader, testloader, imsize, num_classes

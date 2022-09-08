@@ -4,6 +4,9 @@ from torch.utils.data import TensorDataset
 import torchvision
 from torchvision import transforms
 
+import sys
+sys.path.insert(0, '/home/lpetrini/git/diffeomorphism/')
+
 try:
     from diff import *
 except ModuleNotFoundError:

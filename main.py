@@ -5,6 +5,7 @@ Train SOTA nets on MNIST, FashionMNIST or CIFAR10 with PyTorch.
 import os
 import argparse
 import time
+import pickle
 
 from models import *
 import copy
@@ -36,6 +37,7 @@ def run(args):
     loss = []
     terr = []
     best = dict()
+    trloss_flag = 0
 
     for net, epoch, losstr in train(args, trainloader, net0, criterion):
 
@@ -73,15 +75,25 @@ def run(args):
             }
             yield out
         if losstr == 0:
-            break
+            trloss_flag += 1
+            if trloss_flag >= args.zero_loss_epochs:
+                break
+
+    try:
+        wo = weights_evolution(net0, net)
+    except:
+        print('Weights evolution failed!')
+        wo = None
 
     out = {
         'args': args,
         'train loss': loss,
         'terr': terr,
         'dynamics': dynamics,
+        'init': copy.deepcopy(net0.state_dict()) if args.save_init_net else None,
         'best': best,
         'last': copy.deepcopy(net.state_dict()) if args.random_labels or args.save_last_net else None,
+        'weight_evo': wo,
     }
     yield out
 
@@ -176,6 +188,15 @@ def print_time(elapsed_time):
     return ''.join(elapsed_time)
 
 
+def weights_evolution(f0, f):
+    s0 = f0.state_dict()
+    s = f.state_dict()
+    nd = 0
+    for k in s:
+        nd += (s0[k] - s[k]).norm() / s0[k].norm()
+    nd /= len(s)
+    return nd
+
 def main():
 
     parser = argparse.ArgumentParser()
@@ -199,10 +220,14 @@ def main():
     parser.add_argument("--scale_batch_size", type=int, default=0)
 
     ## TwoPoints dataset args ##
-    parser.add_argument("--xi", type=float, default=5)
-    parser.add_argument("--gap", type=float, default=0)
-    parser.add_argument("--norm", type=str, default='Linf')
+    parser.add_argument("--labelling", type=str, default='distance')
+    parser.add_argument("--xi", type=float, default=14)
+    parser.add_argument("--gap", type=float, default=2)
+    parser.add_argument("--norm", type=str, default='L2')
     parser.add_argument("--pbc", type=int, default=0)
+    parser.add_argument("--ch", type=int, default=0)
+    parser.add_argument("--d", type=int, default=28)
+    parser.add_argument("--background_noise", type=float, default=0)
 
     ## tinyImageNet args ##
     parser.add_argument("--group_tiny_classes", type=int, default=0)
@@ -241,10 +266,14 @@ def main():
     parser.add_argument("--width", type=int, default=64)
     parser.add_argument("--depth", type=int, default=3)
     parser.add_argument("--width_factor", type=float, default=1.)
+    parser.add_argument("--pooling", type=str, default='max')
     parser.add_argument("--filter_size", type=int, default=5)
     parser.add_argument("--pooling_size", type=int, default=4)
+    parser.add_argument("--stride", type=int, default=2)
     parser.add_argument("--dropout", type=float, default=0)
     parser.add_argument("--param_list", type=int, default=0, help='Make parameters list for NTK calculation')
+    parser.add_argument("--bias", type=int, default=1, help='for some archs, controls bias presence')
+    parser.add_argument("--batch_norm", type=int, default=0)
 
     ## Scattering transform ##
     parser.add_argument("--scattering_mode", type=int, default=0)
@@ -260,6 +289,7 @@ def main():
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--weight_decay', default=5e-4, type=float)
     parser.add_argument("--epochs", type=int, default=250)
+    parser.add_argument("--zero_loss_epochs", type=int, default=0)
     parser.add_argument("--rescale_epochs", type=int, default=0)
 
     ## Feature vs. Lazy: alpha trick ##
@@ -269,8 +299,9 @@ def main():
 
 
     ### SAVING ARGS ###
-    parser.add_argument("--save_best_net", type=int, default=0)
-    parser.add_argument("--save_last_net", type=int, default=0)
+    parser.add_argument("--save_init_net", type=int, default=1)
+    parser.add_argument("--save_best_net", type=int, default=1)
+    parser.add_argument("--save_last_net", type=int, default=1)
     parser.add_argument("--save_dynamics", type=int, default=0)
 
     ## saving path ##
@@ -282,18 +313,32 @@ def main():
         assert args.output != 'None', 'either `pickle` or `output` must be given to the parser!!'
         args.pickle = args.output
 
-    torch.save(args, args.pickle)
-    saved = False
+    if args.batch_size == 0:
+        args.batch_size = args.ptr
+
+    with open(args.output, 'wb') as handle:
+        pickle.dump(args, handle)
     try:
-        for res in run(args):
-            with open(args.pickle, 'wb') as f:
-                torch.save(args, f, _use_new_zipfile_serialization=False)
-                torch.save(res, f, _use_new_zipfile_serialization=False)
-                saved = True
+        for data in run(args):
+            with open(args.output, 'wb') as handle:
+                pickle.dump(args, handle)
+                pickle.dump(data, handle)
     except:
-        if not saved:
-            os.remove(args.pickle)
+        os.remove(args.output)
         raise
+
+    # torch.save(args, args.pickle)
+    # saved = False
+    # try:
+    #     for res in run(args):
+    #         with open(args.pickle, 'wb') as f:
+    #             torch.save(args, f, _use_new_zipfile_serialization=False)
+    #             torch.save(res, f, _use_new_zipfile_serialization=False)
+    #             saved = True
+    # except:
+    #     if not saved:
+    #         os.remove(args.pickle)
+    #     raise
 
 if __name__ == "__main__":
     main()

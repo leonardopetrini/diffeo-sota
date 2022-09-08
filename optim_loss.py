@@ -49,7 +49,17 @@ def opt_algo(args, net):
 
     if args.optim == 'sgd':
         if not args.pretrained:
-            optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay) ## 5e-4
+            # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay) ## 5e-4
+            optimizer = optim.SGD([
+                {
+                    "params": (p for p in net.parameters() if len(p.shape) != 1),
+                    "weight_decay": args.weight_decay,
+                },
+                {
+                    "params": (p for p in net.parameters() if len(p.shape) == 1),
+                    "weight_decay": 0,
+                },
+            ], lr=args.lr, momentum=0.9) ## 5e-4
         else:
             # for transfer learning, learning rate of last -newly initialized- layer is 10x lr of the rest
             my_list = ['_fc.weight', '_fc.bias']
@@ -69,7 +79,17 @@ def opt_algo(args, net):
                 }],
                 momentum=0.9, weight_decay=0.001, nesterov=True)
     elif args.optim == 'adam':
-        optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.weight_decay) ## 1e-5
+        # optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.weight_decay) ## 1e-5
+        optimizer = optim.Adam([
+                {
+                    "params": (p for p in net.parameters() if len(p.shape) != 1),
+                    "weight_decay": args.weight_decay,
+                },
+                {
+                    "params": (p for p in net.parameters() if len(p.shape) == 1),
+                    "weight_decay": 0,
+                },
+            ], lr=args.lr) ## 1e-5
     else:
         raise NameError('Specify a valid optimizer [Adam, (S)GD]')
 

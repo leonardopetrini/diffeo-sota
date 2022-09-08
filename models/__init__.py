@@ -21,10 +21,10 @@ from .dla_simple import *
 from .dla import *
 from .fc import *
 from .simplenets import *
-from .convnext import *
+# from .convnext import *
 from .convs import *
-from .pretrained import *
-from .scattering import *
+# from .pretrained import *
+# from .scattering import *
 
 
 def model_initialization(args, image_size, num_classes):
@@ -36,7 +36,11 @@ def model_initialization(args, image_size, num_classes):
     :return: neural network as torch.nn.Module
     """
 
-    num_ch = 1 if 'mnist' in args.dataset or args.black_and_white or 'twopoints' in args.dataset else 3
+    if args.ch == 0:
+        num_ch = 1 if 'mnist' in args.dataset or args.black_and_white or 'twopoints' in args.dataset else 3
+    else:
+        num_ch = args.ch
+
     num_classes = 1 if args.loss == 'hinge' else num_classes
 
     ### Define network architecture ###
@@ -51,7 +55,15 @@ def model_initialization(args, image_size, num_classes):
             else:
                 bn = False
                 net_name = args.net
-            net = VGG(net_name, num_ch=num_ch, num_classes=num_classes, batch_norm=bn, param_list=args.param_list, width_factor=args.width_factor)
+            net = VGG(
+                net_name,
+                num_ch=num_ch,
+                num_classes=num_classes,
+                batch_norm=bn,
+                param_list=args.param_list,
+                pooling=args.pooling,
+                width_factor=args.width_factor,
+                stride=args.stride)
         if args.net == 'AlexNet':
             net = AlexNet(num_ch=num_ch, num_classes=num_classes)
         if args.net == 'ResNet18':
@@ -63,7 +75,7 @@ def model_initialization(args, image_size, num_classes):
         if args.net == 'ResNet101':
             net = ResNet101(num_ch=num_ch, num_classes=num_classes)
         if args.net == 'LeNet':
-            net = LeNet(num_ch=num_ch, num_classes=num_classes)
+            net = LeNet(num_ch=num_ch, num_classes=num_classes, stride=args.stride)
         if args.net == 'GoogLeNet':
             net = GoogLeNet(num_ch=num_ch, num_classes=num_classes)
         if args.net == 'MobileNetV2':
@@ -85,10 +97,8 @@ def model_initialization(args, image_size, num_classes):
         if args.net == 'DenseNetL6':
             net = DenseNetL6(num_ch=num_ch * image_size ** 2, num_classes=num_classes, h=args.width)
         if args.net == 'ConvGAP':
-            net = ConvNetGAPMF(n_blocks=args.depth, input_ch=num_ch, h=args.width, filter_size=args.filter_size, stride=1, out_dim=num_classes)
-        if args.net == 'ConvLin':
-            net = ConvNetLinMF(n_blocks=args.depth, input_dim=image_size, input_ch=num_ch, h=args.width, filter_size=args.filter_size, stride=1,
-                               out_dim=num_classes)
+            net = ConvNetGAPMF(n_blocks=args.depth, input_ch=num_ch, h=args.width, filter_size=args.filter_size,
+                               stride=args.stride, pbc=args.pbc, out_dim=num_classes, batch_norm=args.batch_norm)
         if args.net == 'FC':
             net = FC()
         if args.net == 'ScatteringLinear':

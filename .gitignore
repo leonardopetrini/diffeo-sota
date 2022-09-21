@@ -7,7 +7,6 @@ fourier/
 *.torch
 prova*
 .idea/
-datasets/twopoints.py
 
 
 # Byte-compiled / optimized / DLL files

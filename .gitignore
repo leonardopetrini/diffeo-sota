@@ -4,6 +4,7 @@ dataframes/
 paper_final/
 figures/
 fourier/
+results/
 *.torch
 prova*
 .idea/
